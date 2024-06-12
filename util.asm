@@ -4,20 +4,20 @@ rect_2:
     ; ----------------
     ; appends rect to window table.
     ; ----------------
-    ; !window_rect_edge_l_1 (2) -> edge pos, left.
-    ; !window_rect_edge_r_1 (2) ->           right.
-    ; !window_rect_height (1)   -> height.
+    ; !rl (2) -> edge pos, left.
+    ; !rr (2) ->           right.
+    ; !rh (1) -> height.
     ; ----------------
-    lda !window_rect_height
+    lda.b !rh
     sta.w !window_abs+0,x
     
-    lda !window_rect_edge_l_1_hi
+    lda.b !rl+1
     beq .some_in
-    lda !window_rect_edge_r_1_hi
+    lda.b !rr+1
     beq .some_in
     rep #$20
-    lda !window_rect_edge_l_1_lo
-    cmp !window_rect_edge_r_1_lo
+    lda.b !rl+0
+    cmp.b !rr+0
     sep #$20
     lda #$ff
     bcs .both_out
@@ -35,21 +35,21 @@ rect_2:
     .some_in:
         sep #$20
         ..left:
-            lda !window_rect_edge_l_1_hi
+            lda.b !rl+1
             beq +
             lda #$00
             bra ++
             +
-            lda !window_rect_edge_l_1_lo
+            lda.b !rl+0
             ++
             sta.w !window_abs+1,x
         ..right:
-            lda !window_rect_edge_r_1_hi
+            lda.b !rr+1
             beq +
             lda #$ff
             bra ++
             +
-            lda !window_rect_edge_r_1_lo
+            lda.b !rr+0
             ++
             sta.w !window_abs+2,x
             

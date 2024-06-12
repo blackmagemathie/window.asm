@@ -1,21 +1,58 @@
 namespace circle
+    
+prepare:
+    ; prepares values for circle drawing.
+    ; no need to call if radius unchanged.
+    ; ----------------
+    ; $00 (11) -> returned bresenham values.
+    ; ----------------
+    ; $3104 (2) <- radius, unsigned, ×1.
+    ; $3106 (2) <-                   ×2.
+    ; $3108 (2) <- octant data size.
+    ; $310a (2) <-        diagonal size.
+    ; $310c (3) <-        data pointer.
+    ; ----------------
+    !1r = $3104
+    !2r = $3106
+    !bs = $3108
+    !bd = $310a
+    !bp = $310c
+    
+    rep #$20
+    
+    ; 1r, 2r
+    lda $00
+    sta.w !1r
+    asl
+    sta.w !2r
+    
+    ; bs, bd
+    lda $04
+    sta.w !bs
+    lda $02
+    sta.w !bd
+    
+    ; bp
+    lda $08
+    sta.w !bp+0
+    sep #$20
+    lda $0a
+    sta.w !bp+2
+        
+    rtl
 
-from_bresenham:
+draw:
     ; creates hdma table from octant.
     ; ----------------
-    ; $3000 (2) -> radius, unsigned.
-    ; [$3008]   -> octant data.
-    ; $3002 (2) -> $0001 = ends on diagonal.
-    ; $3004 (2) -> octant data size.
-    ; $3100 (2) -> top left corner pos x.
-    ; $3102 (2) ->                     y.
-    ; carry     -> table to use. clear = 1; set = 2. (wip)
+    ; $3100 (2)  -> top left corner pos x.
+    ; $3102 (2)  ->                     y.
+    ; $3104 (11) -> (prepared values)
+    ; carry      -> table to use. clear = 1; set = 2.
     ; ----------------
-    !cx = $00
-    !cy = $02
-    !1r = $04
-    !2r = $06
-    !b  = $08
+    !cx = $3100
+    !cy = $3102
+    !t0 = $3110
+    !t1 = $3112
     
     lda.b #!window_page
     sta $318f
@@ -26,53 +63,42 @@ from_bresenham:
     rep #$30
     lda #$3100
     tcd
+    
+    bcs +
     ldx.w #!window_index_1
+    bra ++
+    +
+    ldx.w #!window_index_2
+    ++
     
     .test_bounds:
-        lda $3000
-        sta !1r
-        asl
-        sta !2r
-        
-        lda !cx
+        lda.b !cx
         cmp #$0100
         bcc +
         dec
         clc
-        adc !2r
+        adc.b !2r
         bcs +
         jmp .clear
         +
         
-        lda !cy
+        lda.b !cy
         cmp #$00e0
         bcc +
         dec
         clc
-        adc !2r
+        adc.b !2r
         bcs +
         jmp .clear
         +
         
-    .init_v:
+    .pad_blank:
+        lda.b !cy
+        beq .test_small
+        cmp #$00e0
+        bcs .test_small
         sep #$20
-        
-        lda $3008 : sta !b+0
-        lda $3009 : sta !b+1
-        lda $300a : sta !b+2
-        
-        lda !cy+1
-        bne .find_v
-        lda !cy+0
-        bne +
-        lda #$e0
-        sta $300b
-        jmp .draw_parts
-        +
-        cmp #$e0
-        bcs .find_v
-        cmp #$80
-        beq +
+        cmp #$81
         bcc +
         lda #$80
         sta.w !window_abs+0,x
@@ -80,7 +106,7 @@ from_bresenham:
         sta.w !window_abs+1,x
         stz.w !window_abs+2,x
         inx #3
-        lda !cy+0
+        lda.b !cy+0
         and #$7f
         +
         sta.w !window_abs+0,x
@@ -88,50 +114,52 @@ from_bresenham:
         sta.w !window_abs+1,x
         stz.w !window_abs+2,x
         inx #3
-        lda #$e0
-        sec
-        sbc !cy+0
-        sta $300b
-        jmp .draw_parts
         
-    .find_v:
-        bra .clear
-        
-    .draw_parts:
-        ; if small, simplify drawing
-        lda !1r+1
-        bne +
-        lda !1r+0
-        cmp #$03
-        bcs +
-        asl
-        sta !window_rect_height
-        stz $3105
+    .test_small:
         rep #$20
-        lda !cx
-        sta !window_rect_edge_l_1_lo
+        lda.b !1r
+        cmp #$0003
+        bcs .draw
+        lda.b !cx
+        sta.b !rl
         clc
-        adc !window_rect_height
+        adc.b !2r
         dec
-        sta !window_rect_edge_r_1_lo
+        sta.b !rr
+        lda.b !cy
+        cmp #$00e0
         sep #$20
-        jsr util_rect_2
-        bra .clear
+        lda.b !2r
+        bcc +
+        clc
+        adc.b !cy
         +
-        ; else, split into parts
+        sta.b !rh
+        jsr util_rect_2
+        jmp .clear
+        
+    .draw:
+        sep #$20
         jsr .top_h
-        lda $3002
+        lda.b !bd
         beq +
+        clc
         jsr .diag
         +
         jsr .top_v
+        jsr .bot_v
+        lda.b !bd
+        beq +
+        sec
+        jsr .diag
+        +
+        jsr .bot_h
         
     .clear:
         sep #$20
         jsr util_clear_2
         
     .end:
-        rep #$20
         lda #$3000
         tcd
         sep #$20
@@ -143,110 +171,354 @@ from_bresenham:
         rtl
         
     .top_h:
-        ; seg values
-        lda #$01
-        sta !window_rect_height
         ldy #$0000
-        lda [!b],y
         rep #$20
-        and #$00ff
-        pha
-        lda !cx
-        clc
-        adc !1r
-        sec
-        sbc $01,s
-        sta !window_rect_edge_l_1_lo
-        pla
-        asl
-        clc
-        adc !window_rect_edge_l_1_lo
-        dec
-        sta !window_rect_edge_r_1_lo
-        ; loop counter
-        lda $3004
-        sec
-        sbc $3002
-        sta $3006
-        ; loop
-        sep #$20
-        -
-        jsr util_rect_2
-        iny
-        cpy $3006
-        bcs ++
-        lda [!b],y
-        clc
-        adc !window_rect_edge_r_1_lo
-        sta !window_rect_edge_r_1_lo
-        bcc +
-        inc !window_rect_edge_r_1_hi
-        +
-        lda !window_rect_edge_l_1_lo
-        sec
-        sbc [!b],y
-        sta !window_rect_edge_l_1_lo
+        lda.b !cy
+        cmp #$00e0
         bcs +
-        dec !window_rect_edge_l_1_hi
+        tya
+        bra ..draw
         +
-        bra -
-        ++
+        dec
+        clc
+        adc.b !bs
+        bcs +
+        sep #$20
         rts
+        +
+        sta.b !t1
+        lda.b !bs
+        clc
+        sbc.b !t1
+        sta.b !t1
+        
+        ..find:
+            sep #$20
+            stz.b !t0+1
+            lda #$00
+            -
+            clc
+            adc.b [!bp],y
+            bcc +
+            inc.b !t0+1
+            +
+            iny
+            cpy.b !t1
+            bcc -
+            sta.b !t0+0
+            rep #$20
+            lda.b !t0
+        
+        ..draw:
+            pha
+            lda.b !cx
+            clc
+            adc.b !1r
+            sec
+            sbc $01,s
+            sta.b !rl
+            pla
+            asl
+            clc
+            adc.b !rl
+            dec
+            sta.b !rr
+            sep #$20
+            lda #$01
+            sta.b !rh
+            -
+            rep #$20
+            lda.b [!bp],y
+            and #$00ff
+            sta.b !t1
+            clc
+            adc.b !rr
+            sta.b !rr
+            lda.b !rl
+            sec
+            sbc.b !t1
+            sta.b !rl
+            sep #$20
+            jsr util_rect_2
+            iny
+            cpy.b !bs
+            bcc -
+            rts
+            
+    .bot_h:
+        rep #$20
+        lda.b !cy
+        clc
+        adc.b !2r
+        sec
+        sbc.b !bs
+        cmp #$00e0
+        bcs +
+        lda.b !bs
+        dec
+        bra ..find
+        +
+        dec
+        clc
+        adc.b !bs
+        bcs +
+        sep #$20
+        rts
+        +
+        
+        ..find:
+            sta.b !t1
+            lda.b !bs
+            tay
+            
+            sep #$20
+            stz.b !t0+1
+            lda #$00
+            bra +
+            
+            -
+            clc
+            adc.b [!bp],y
+            bcc +
+            inc.b !t0+1
+            +
+            dey
+            cpy.b !t1
+            bne -
+            
+            sta.b !t0+0
+            rep #$20
+            lda.b !bs
+            clc
+            adc.b !bd
+            clc
+            adc.b !t0
+            sta.b !t1
+            clc
+            adc.b !cx
+            sta.b !rl
+            
+            lda.b !cx
+            clc
+            adc.b !2r
+            clc
+            sbc.b !t1
+            sta.b !rr
+            
+            sep #$20
+            lda #$01
+            sta.b !rh
+            
+        ..draw:
+            -
+            jsr util_rect_2
+            rep #$20
+            lda.b [!bp],y
+            and #$00ff
+            sta.b !t1
+            clc
+            adc.b !rl
+            sta.b !rl
+            lda.b !rr
+            sec
+            sbc.b !t1
+            sta.b !rr
+            +
+            sep #$20
+            dey
+            bpl -
+            rts
         
     .top_v:
         rep #$20
-        lda $3004
+        
+        ; get full height
+        lda.b !1r
+        sec
+        sbc.b !bd
+        sec
+        sbc.b !bs
+        sta.b !t1
+        
+        ; get starting y pos
+        lda.b !cy
         clc
-        sbc $3002
-        tay
-        sta $3006
+        adc.b !bs
         clc
-        adc !cx
-        sta !window_rect_edge_l_1_lo
-        lda !2r
+        adc.b !bd
+        sta.b !t0
+        
+        ; test full offscreen
+        cmp #$00e0
+        bcc +
+        dec
         clc
-        adc !cx
-        clc
-        sbc $3006
-        sta !window_rect_edge_r_1_lo
+        adc.b !t1
+        bcs +
         sep #$20
-        -
-        lda [!b],y
-        sta !window_rect_height
-        jsr util_rect_2
-        dey
-        bmi +
-        rep #$20
-        dec !window_rect_edge_l_1_lo
-        inc !window_rect_edge_r_1_lo
-        sep #$20
-        bra -
-        +
         rts
+        +
+        
+        ; init edge left
+        lda.b !bs
+        dec
+        tay
+        sta.b !t1
+        clc
+        adc.b !cx
+        sta.b !rl
+        
+        ; init edge right
+        lda.b !2r
+        clc
+        adc.b !cx
+        clc
+        sbc.b !t1
+        sta.b !rr
+        
+        ..draw:
+            -
+            lda.b [!bp],y
+            and #$00ff
+            pha
+            sta.b !rh
+            lda.b !t0
+            cmp #$00e0
+            bcc ...ok
+            dec
+            clc
+            adc.b !rh
+            bcc ...no
+            inc
+            sta.b !rh
+            ...ok:
+            sep #$20
+            jsr util_rect_2
+            rep #$20
+            ...no:
+            dec.b !rl
+            inc.b !rr
+            pla
+            clc
+            adc.b !t0
+            sta.b !t0
+            dey
+            bpl -
+            sep #$20
+            rts
+            
+    .bot_v:
+        rep #$20
+        
+        ; get full height
+        lda.b !1r
+        sec
+        sbc.b !bd
+        sec
+        sbc.b !bs
+        sta.b !t1
+        
+        ; get starting y pos
+        lda.b !cy
+        clc
+        adc.b !1r
+        sta.b !t0
+        
+        ; test full offscreen
+        cmp #$00e0
+        bcc +
+        dec
+        clc
+        adc.b !t1
+        bcs +
+        sep #$20
+        rts
+        +
+        
+        ; init edges
+        lda.b !cx
+        sta.b !rl
+        dec
+        clc
+        adc.b !2r
+        sta.b !rr
+        
+        ..draw:
+            ldy #$0000
+            -
+            lda.b [!bp],y
+            and #$00ff
+            pha
+            sta.b !rh
+            lda.b !t0
+            cmp #$00e0
+            bcc ...ok
+            dec
+            clc
+            adc.b !rh
+            bcc ...no
+            inc
+            sta.b !rh
+            ...ok:
+            sep #$20
+            jsr util_rect_2
+            rep #$20
+            ...no:
+            inc.b !rl
+            dec.b !rr
+            pla
+            clc
+            adc.b !t0
+            sta.b !t0
+            iny
+            cpy.b !bs
+            bcc -
+            sep #$20
+            rts
         
     .diag:
         rep #$20
-        lda $3004
-        dec
-        tay
-        clc
-        adc !cx
-        sta !window_rect_edge_l_1_lo
-        lda !2r
-        sec
-        adc !cx
-        clc
-        sbc $3004
-        sta !window_rect_edge_r_1_lo
-        sep #$20
-        lda [!b],y
-        sta !window_rect_height
-        jmp util_rect_2
         
-    undef "cx"
-    undef "cy"
-    undef "1r"
-    undef "2r"
-    undef "b"
+        lda.b !bd
+        sta.b !rh
+        
+        lda.b !cy
+        bcs +
+        clc
+        adc.b !bs
+        bra ++
+        +
+        clc
+        adc.b !2r
+        sec
+        sbc.b !bs
+        sec
+        sbc.b !bd
+        ++
+        cmp #$00e0
+        bcc ..draw
+        dec
+        clc
+        adc.b !rh
+        bcs +
+        sep #$20
+        rts
+        +
+        inc
+        sta.b !rh
+        
+        ..draw:
+            lda.b !cx
+            clc
+            adc.b !bs
+            sta.b !rl
+            lda.b !cx
+            clc
+            adc.b !2r
+            clc
+            sbc.b !bs
+            sta.b !rr
+            sep #$20
+            jmp util_rect_2
 
 namespace off
