@@ -44,17 +44,12 @@ prepare:
 draw:
     ; creates hdma table from octant.
     ; ----------------
-    ; $3100 (2)  -> top left corner pos x.
-    ; $3102 (2)  ->                     y.
+    ; !gx (2)    -> top left corner pos x.
+    ; !gy (2)    ->                     y.
     ; $3104 (11) -> (prepared values)
     ; carry      -> table to use. clear = 1; set = 2.
     ; ----------------
-    !cx = $3100
-    !cy = $3102
-    !t0 = $3110
-    !t1 = $3112
-    
-    lda.b #!window_page
+    lda.b #!wwp
     sta $318f
     sta $2225
     phb
@@ -72,7 +67,7 @@ draw:
     ++
     
     .test_bounds:
-        lda.b !cx
+        lda.b !gx
         cmp #$0100
         bcc +
         dec
@@ -82,7 +77,7 @@ draw:
         jmp .clear
         +
         
-        lda.b !cy
+        lda.b !gy
         cmp #$00e0
         bcc +
         dec
@@ -93,7 +88,7 @@ draw:
         +
         
     .pad_blank:
-        lda.b !cy
+        lda.b !gy
         beq .test_small
         cmp #$00e0
         bcs .test_small
@@ -101,18 +96,18 @@ draw:
         cmp #$81
         bcc +
         lda #$80
-        sta.w !window_abs+0,x
+        sta.w !ww+0,x
         lda #$ff
-        sta.w !window_abs+1,x
-        stz.w !window_abs+2,x
+        sta.w !ww+1,x
+        stz.w !ww+2,x
         inx #3
-        lda.b !cy+0
+        lda.b !gy+0
         and #$7f
         +
-        sta.w !window_abs+0,x
+        sta.w !ww+0,x
         lda #$ff
-        sta.w !window_abs+1,x
-        stz.w !window_abs+2,x
+        sta.w !ww+1,x
+        stz.w !ww+2,x
         inx #3
         
     .test_small:
@@ -120,19 +115,19 @@ draw:
         lda.b !1r
         cmp #$0003
         bcs .draw
-        lda.b !cx
+        lda.b !gx
         sta.b !rl
         clc
         adc.b !2r
         dec
         sta.b !rr
-        lda.b !cy
+        lda.b !gy
         cmp #$00e0
         sep #$20
         lda.b !2r
         bcc +
         clc
-        adc.b !cy
+        adc.b !gy
         +
         sta.b !rh
         jsr util_rect_2
@@ -163,7 +158,7 @@ draw:
         lda #$3000
         tcd
         sep #$20
-        stz.w !window_abs+0,x
+        stz.w !ww+0,x
         sep #$10
         stz $318f
         stz $2225
@@ -173,7 +168,7 @@ draw:
     .top_h:
         ldy #$0000
         rep #$20
-        lda.b !cy
+        lda.b !gy
         cmp #$00e0
         bcs +
         tya
@@ -211,7 +206,7 @@ draw:
         
         ..draw:
             pha
-            lda.b !cx
+            lda.b !gx
             clc
             adc.b !1r
             sec
@@ -247,7 +242,7 @@ draw:
             
     .bot_h:
         rep #$20
-        lda.b !cy
+        lda.b !gy
         clc
         adc.b !2r
         sec
@@ -295,10 +290,10 @@ draw:
             adc.b !t0
             sta.b !t1
             clc
-            adc.b !cx
+            adc.b !gx
             sta.b !rl
             
-            lda.b !cx
+            lda.b !gx
             clc
             adc.b !2r
             clc
@@ -341,7 +336,7 @@ draw:
         sta.b !t1
         
         ; get starting y pos
-        lda.b !cy
+        lda.b !gy
         clc
         adc.b !bs
         clc
@@ -365,13 +360,13 @@ draw:
         tay
         sta.b !t1
         clc
-        adc.b !cx
+        adc.b !gx
         sta.b !rl
         
         ; init edge right
         lda.b !2r
         clc
-        adc.b !cx
+        adc.b !gx
         clc
         sbc.b !t1
         sta.b !rr
@@ -419,7 +414,7 @@ draw:
         sta.b !t1
         
         ; get starting y pos
-        lda.b !cy
+        lda.b !gy
         clc
         adc.b !1r
         sta.b !t0
@@ -436,7 +431,7 @@ draw:
         +
         
         ; init edges
-        lda.b !cx
+        lda.b !gx
         sta.b !rl
         dec
         clc
@@ -482,7 +477,7 @@ draw:
         lda.b !bd
         sta.b !rh
         
-        lda.b !cy
+        lda.b !gy
         bcs +
         clc
         adc.b !bs
@@ -508,11 +503,11 @@ draw:
         sta.b !rh
         
         ..draw:
-            lda.b !cx
+            lda.b !gx
             clc
             adc.b !bs
             sta.b !rl
-            lda.b !cx
+            lda.b !gx
             clc
             adc.b !2r
             clc

@@ -4,20 +4,18 @@ empty_force:
     ; ----------------
     ; appends blank space to window table.
     ; ----------------
-    ; A (2)                    -> height.
-    ; !window_global_y (2)     -> position, y.
-    ; !window_global_index (2) -> table index.
+    ; A (2)   -> height.
+    ; !gy (2) -> position, y.
+    ; !ti (2) -> table index.
     ; ----------------
-    ; !window_global_index (2) <- table index, updated.
-    ; $310d (2)                <- (garbage)
+    ; !ti (2)   <- table index, updated.
+    ; $310d (2) <- (garbage)
     ; ----------------
-    !t0 = $310d
-    
     php
     rep #$30
-    ldx.w !window_global_index
+    ldx.w !ti
     sta.w !t0
-    lda.w !window_global_y
+    lda.w !gy
     cmp #$00e0
     bcc +
     dec
@@ -32,7 +30,7 @@ empty_force:
     .append:
         jsr empty_common
     .end:
-        stx.w !window_global_index
+        stx.w !ti
         plp
         rtl
 
@@ -41,21 +39,21 @@ empty_pad:
     ; appends blank space to window table.
     ; suited for padding before drawing shapes.
     ; ----------------
-    ; !window_global_y (2)     -> position, y.
-    ; !window_global_index (2) -> table index.
+    ; !gy (2) -> position, y.
+    ; !ti (2) -> table index.
     ; ----------------
-    ; !window_global_index (2) <- table index, updated.
+    ; !ti (2) <- table index, updated.
     ; ----------------
     php
     rep #$30
-    ldx.w !window_global_index
-    lda.w !window_global_y
+    ldx.w !ti
+    lda.w !gy
     beq +
     cmp #$00e0
     bcs +
     jsr empty_common
     +
-    stx.w !window_global_index
+    stx.w !ti
     plp
     rtl
 
@@ -64,17 +62,17 @@ empty_common:
     bcc +
     pha
     lda #$0080
-    sta.l !window_data+0,x
+    sta.l !wl+0,x
     lda #$00ff
-    sta.l !window_data+1,x
+    sta.l !wl+1,x
     inx #3
     pla
     sec
     sbc #$0080
     +
-    sta.l !window_data+0,x
+    sta.l !wl+0,x
     lda #$00ff
-    sta.l !window_data+1,x
+    sta.l !wl+1,x
     inx #3
     rts
 
@@ -82,23 +80,23 @@ shape:
     ; ----------------
     ; appends shape to window table.
     ; ----------------
-    ; $3100 (3)                -> data pointer, rect height.
-    ; $3103 (3)                ->                    left.
-    ; $3106 (3)                ->                    width.
-    ; $3109 (2)                ->      length.
-    ; !window_global_x (2)     -> position, x.
-    ; !window_global_y (2)     ->           y.
-    ; !window_global_index (2) -> table index.
+    ; $3100 (3) -> data pointer, rect height.
+    ; $3103 (3) ->                    left.
+    ; $3106 (3) ->                    width.
+    ; $3109 (2) ->      length.
+    ; !gx (2)   -> position, x.
+    ; !gy (2)   ->           y.
+    ; !ti (2)   -> table index.
     ; ----------------
-    ; !window_global_index (2) <- table index, updated.
-    ; $310d (2)                <- (garbage)
+    ; !ti (2)   <- table index, updated.
+    ; $310d (2) <- (garbage)
     ; ----------------
     !ph = $3100
     !pl = $3103
     !pw = $3106
     !l  = $3109
     
-    lda.b #!window_page
+    lda.b #!wwp
     sta $318f
     sta $2225
     phb
@@ -108,9 +106,9 @@ shape:
     lda #$3100
     tcd
     
-    ldx.b !window_global_index
+    ldx.b !ti
     ldy #$0000
-    lda.b !window_global_y
+    lda.b !gy
     sta.b !t0
     cmp #$00e0
     bcc .read
@@ -136,7 +134,7 @@ shape:
         sta.b !rh
         lda.b [!pl],y
         clc
-        adc.b !window_global_x
+        adc.b !gx
         sta.b !rl
         dec
         clc
@@ -156,7 +154,7 @@ shape:
         bcc .read
         
     .end:
-        stx.b !window_global_index
+        stx.b !ti
         lda #$3000
         tcd
         sep #$30

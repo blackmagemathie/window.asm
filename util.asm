@@ -9,7 +9,7 @@ rect_2:
     ; !rh (1) -> height.
     ; ----------------
     lda.b !rh
-    sta.w !window_abs+0,x
+    sta.w !ww+0,x
     
     lda.b !rl+1
     beq .some_in
@@ -23,13 +23,13 @@ rect_2:
     bcs .both_out
     
     .invalid:
-        sta.w !window_abs+1,x
-        stz.w !window_abs+2,x
+        sta.w !ww+1,x
+        stz.w !ww+2,x
         bra .end
         
     .both_out:
-        sta.w !window_abs+2,x
-        stz.w !window_abs+1,x
+        sta.w !ww+2,x
+        stz.w !ww+1,x
         bra .end
         
     .some_in:
@@ -42,7 +42,7 @@ rect_2:
             +
             lda.b !rl+0
             ++
-            sta.w !window_abs+1,x
+            sta.w !ww+1,x
         ..right:
             lda.b !rr+1
             beq +
@@ -51,7 +51,7 @@ rect_2:
             +
             lda.b !rr+0
             ++
-            sta.w !window_abs+2,x
+            sta.w !ww+2,x
             
     .end:
         inx #3
@@ -62,9 +62,9 @@ clear_2:
     ; ends window table.
     ; ----------------
     lda #$01
-    sta.w !window_abs+0,x
-    sta.w !window_abs+1,x
-    stz.w !window_abs+2,x
+    sta.w !ww+0,x
+    sta.w !ww+1,x
+    stz.w !ww+2,x
     inx #3
     rts
     

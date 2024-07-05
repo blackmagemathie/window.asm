@@ -6,6 +6,6 @@
     !window_index_2 = $0300
     
 ; global
-    !window_global_index = $3138
-    !window_global_y     = $3136
-    !window_global_x     = $3134
+    !window_table_index = $3138
+    !window_pos_y = $3136
+    !window_pos_x = $3134
